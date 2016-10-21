@@ -11,8 +11,11 @@
 #define BALL_Y_MIN          1.0f
 #define BALL_Y_MAX          30.0f
 
+#define SPEED_INC           1.05f
+
 InterruptIn left(p5);
 InterruptIn right(p6);
+Ticker ticker;
 
 int paddle_x = 30;
 
@@ -22,32 +25,32 @@ float ball_y = 5.0f;
 float ball_speed_x = (float) rand() / RAND_MAX;
 float ball_speed_y = (float) rand() / RAND_MAX;
 
-bool wall_collided;
-bool paddle_collided;
+int moving_left = false;
+int moving_right = false;
 
-
-void handle_button_press() {
-    if (left.read()) {
-        // move left
-        if (paddle_x <= PADDLE_LEFT_STOP) {
-            paddle_x = PADDLE_MIN;
-        }     
-        else {
-            paddle_x -= PADDLE_X_INC;
-        }    
-    }
-    else {
-        // move right
-        if (paddle_x >= PADDLE_RIGHT_STOP) {
-            paddle_x = PADDLE_MAX;
-        }     
-        else {
-            paddle_x += PADDLE_X_INC;
-        }
-    }    
+void handle_button_change() {
+    // update status of paddle
+    moving_left = left.read();
+    moving_right = right.read();
 }
 
 void update_board() {
+    // update paddle
+    if (moving_left) {
+        paddle_x -= PADDLE_X_INC;
+    }
+
+    if (moving_right) {
+        paddle_x += PADDLE_X_INC;
+    }
+
+    if (paddle_x <= PADDLE_MIN) {
+        paddle_x = PADDLE_MIN;
+    }
+    else if (paddle_x >= PADDLE_MAX) {
+        paddle_x = PADDLE_MAX;
+    }
+
     // update ball position
     ball_x += ball_speed_x;
     ball_y += ball_speed_y;
@@ -71,15 +74,34 @@ void update_board() {
     }
     else if (ball_y > BALL_Y_MAX) {
         // check if paddle is there!    
+        if ((float)(paddle_x - 2) <= ball_x && ball_x <= (float)(paddle_x + 2)) {
+            // paddle is under ball, so just reflect
+            ball_y = BALL_Y_MAX;
+            // increase speed (and reflect y)
+            ball_speed_y = abs(ball_speed_y) * (-SPEED_INC);
+            ball_speed_x *= SPEED_INC;
+        }
+        else {
+            // player lost
+            __disable_irq();
+        }
     }
+
+    // print coordinates of things
+
+    // paddle
+    printf("p%02d\n", paddle_x);
+
+    // ball
+    printf("b%02d,%02d\n", (int)ball_x, (int)ball_y);
 }
 
 int main() {
-    while(1) {
-        myled = 1;
-        wait(0.2);
-        myled = 0;
-        wait(0.2);
-    }
+    left.rise(&handle_button_change);    
+    left.fall(&handle_button_change);    
+    right.rise(&handle_button_change);    
+    right.fall(&handle_button_change); 
+    ticker.attach(&update_board, 0.033f);
+    for(;;);
 }
 
